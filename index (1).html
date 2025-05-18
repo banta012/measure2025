@@ -1,0 +1,1308 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تطبيق توزيع القياسات</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.25.6/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root" className="min-h-screen bg-blue-100 font-sans"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // بيانات المستخدمين (أدمن، 3 فنيين، 6 مستخدمين لإدخال البيانات)
+    const initialUsers = [
+      { id: 1, username: "admin", password: "admin123", role: "admin" },
+      { id: 2, username: "tech1", password: "tech123", role: "technician", name: "فني 1" },
+      { id: 3, username: "tech2", password: "tech123", role: "technician", name: "فني 2" },
+      { id: 4, username: "tech3", password: "tech123", role: "technician", name: "فني 3" },
+      { id: 5, username: "data1", password: "data123", role: "data_entry", name: "مدخل بيانات 1" },
+      { id: 6, username: "data2", password: "data123", role: "data_entry", name: "مدخل بيانات 2" },
+      { id: 7, username: "data3", password: "data123", role: "data_entry", name: "مدخل بيانات 3" },
+      { id: 8, username: "data4", password: "data123", role: "data_entry", name: "مدخل بيانات 4" },
+      { id: 9, username: "data5", password: "data123", role: "data_entry", name: "مدخل بيانات 5" },
+      { id: 10, username: "data6", password: "data123", role: "data_entry", name: "مدخل بيانات 6" },
+    ];
+
+    // خيارات نوعية القياس
+    const measurementTypes = [
+      { value: "sofa", label: "صوفا" },
+      { value: "kitchen", label: "مطابخ" },
+      { value: "villa", label: "فيلا" },
+      { value: "project", label: "مشاريع" },
+      { value: "inspection", label: "معاينة" },
+    ];
+
+    // قائمة مناطق الكويت
+    const kuwaitAreas = [
+      { value: "الدسمة", label: "الدسمة" },
+      { value: "الدعية", label: "الدعية" },
+      { value: "الدوحة", label: "الدوحة" },
+      { value: "الشامية", label: "الشامية" },
+      { value: "الشرق", label: "الشرق" },
+      { value: "الصوابر", label: "الصوابر" },
+      { value: "العديلية", label: "العديلية" },
+      { value: "الفيحاء", label: "الفيحاء" },
+      { value: "القادسية", label: "القادسية" },
+      { value: "القبلة", label: "القبلة" },
+      { value: "المرقاب", label: "المرقاب" },
+      { value: "المنصورية", label: "المنصورية" },
+      { value: "النزهة", label: "النزهة" },
+      { value: "اليرموك", label: "اليرموك" },
+      { value: "بنيد القار", label: "بنيد القار" },
+      { value: "دسمان", label: "دسمان" },
+      { value: "كيفان", label: "كيفان" },
+      { value: "البدع", label: "البدع" },
+      { value: "الجابرية", label: "الجابرية" },
+      { value: "الرميثية", label: "الرميثية" },
+      { value: "الزهراء", label: "الزهراء" },
+      { value: "السالمية", label: "السالمية" },
+      { value: "الشعب", label: "الشعب" },
+      { value: "الصديق", label: "الصديق" },
+      { value: "بيان", label: "بيان" },
+      { value: "حطين", label: "حطين" },
+      { value: "حولي", label: "حولي" },
+      { value: "سلوى", label: "سلوى" },
+      { value: "ميدان حولي", label: "ميدان حولي" },
+      { value: "أبرق خيطان", label: "أبرق خيطان" },
+      { value: "الرابية", label: "الرابية" },
+      { value: "الرحاب", label: "الرحاب" },
+      { value: "الرقعي", label: "الرقعي" },
+      { value: "الري", label: "الري" },
+      { value: "العارضية", label: "العارضية" },
+      { value: "العمرية", label: "العمرية" },
+      { value: "الفردوس", label: "الفردوس" },
+      { value: "الفروانية", label: "الفروانية" },
+      { value: "جليب الشيوخ", label: "جليب الشيوخ" },
+      { value: "خيطان", label: "خيطان" },
+      { value: "أبو حليفة", label: "أبو حليفة" },
+      { value: "الأحمدي", label: "الأحمدي" },
+      { value: "الصباحية", label: "الصباحية" },
+      { value: "الظهر", label: "الظهر" },
+      { value: "العقيلة", label: "العقيلة" },
+      { value: "الفحيحيل", label: "الفحيحيل" },
+      { value: "الفنطاس", label: "الفنطاس" },
+      { value: "المقوع", label: "المقوع" },
+      { value: "المهبولة", label: "المهبولة" },
+      { value: "المنقف", label: "المنقف" },
+      { value: "هدية", label: "هدية" },
+      { value: "الجهراء القديمة", label: "الجهراء القديمة" },
+      { value: "الجهراء الجديدة", label: "الجهراء الجديدة" },
+      { value: "النعيم", label: "النعيم" },
+      { value: "القصر", label: "القصر" },
+      { value: "العيون", label: "العيون" },
+      { value: "تيماء", label: "تيماء" },
+      { value: "سعد العبدالله", label: "سعد العبدالله" },
+      { value: "كبد", label: "كبد" },
+      { value: "أبو فطيرة", label: "أبو فطيرة" },
+      { value: "العدان", label: "العدان" },
+      { value: "القرين", label: "القرين" },
+      { value: "القصور", label: "القصور" },
+      { value: "المسيلة", label: "المسيلة" },
+      { value: "صبحان", label: "صبحان" },
+      { value: "مبارك الكبير", label: "مبارك الكبير" },
+      { value: "واصلة", label: "واصلة" },
+    ];
+
+    // بيانات المهام (قاعدة بيانات وهمية)
+    const initialTasks = [
+      {
+        id: 1,
+        clientName: "محمد أحمد",
+        phone: "0123456789",
+        invoice: "INV001",
+        address: { area: "السالمية", details: "بلوك 5، شارع 10، منزل 20" },
+        technicianId: 2,
+        status: "pending",
+        scheduleDate: "2025-05-18",
+        measurementType: "sofa",
+        technicianNotes: "",
+        attachedFiles: [],
+      },
+      {
+        id: 2,
+        clientName: "سارة محمود",
+        phone: "0987654321",
+        invoice: "INV002",
+        address: { area: "حولي", details: "بلوك 3، شارع 15، منزل 12" },
+        technicianId: 3,
+        status: "pending",
+        scheduleDate: "2025-05-18",
+        measurementType: "kitchen",
+        technicianNotes: "",
+        attachedFiles: [],
+      },
+      {
+        id: 3,
+        clientName: "علي حسن",
+        phone: "0112233445",
+        invoice: "INV003",
+        address: { area: "الفروانية", details: "بلوك 2، شارع 8، منزل 5" },
+        technicianId: 2,
+        status: "pending",
+        scheduleDate: "2025-05-19",
+        measurementType: "villa",
+        technicianNotes: "",
+        attachedFiles: [],
+      },
+    ];
+
+    // مكون تسجيل الدخول
+    const Login = ({ setUser }) => {
+      const [username, setUsername] = useState("");
+      const [password, setPassword] = useState("");
+      const [error, setError] = useState("");
+
+      const handleLogin = () => {
+        try {
+          const user = initialUsers.find(
+            (u) => u.username === username && u.password === password
+          );
+          if (user) {
+            setUser(user);
+            setError("");
+          } else {
+            setError("اسم المستخدم أو كلمة المرور غير صحيحة");
+          }
+        } catch (e) {
+          console.error("خطأ في تسجيل الدخول:", e);
+          setError("حدث خطأ أثناء تسجيل الدخول");
+        }
+      };
+
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-6 text-center">تسجيل الدخول</h2>
+            <div className="mb-4">
+              <label className="block text-gray-700">اسم المستخدم</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-gray-700">كلمة المرور</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            {error && <p className="text-red-500 mb-4">{error}</p>}
+            <button
+              onClick={handleLogin}
+              className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
+            >
+              تسجيل الدخول
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // مكون واجهة إدخال البيانات
+    const DataEntryDashboard = ({ tasks, setTasks, logout }) => {
+      const [clientName, setClientName] = useState("");
+      const [phone, setPhone] = useState("");
+      const [invoice, setInvoice] = useState("");
+      const [area, setArea] = useState("");
+      const [addressDetails, setAddressDetails] = useState("");
+      const [technicianId, setTechnicianId] = useState("");
+      const [scheduleDate, setScheduleDate] = useState("");
+      const [measurementType, setMeasurementType] = useState("");
+
+      const addTask = () => {
+        try {
+          if (!clientName || !phone || !invoice || !area || !addressDetails || !technicianId || !scheduleDate || !measurementType) {
+            alert("يرجى ملء جميع الحقول");
+            return;
+          }
+
+          const newTask = {
+            id: tasks.length + 1,
+            clientName,
+            phone,
+            invoice,
+            address: { area, details: addressDetails },
+            technicianId: parseInt(technicianId),
+            status: "pending",
+            scheduleDate,
+            measurementType,
+            technicianNotes: "",
+            attachedFiles: [],
+          };
+          setTasks([...tasks, newTask]);
+
+          setClientName("");
+          setPhone("");
+          setInvoice("");
+          setArea("");
+          setAddressDetails("");
+          setTechnicianId("");
+          setScheduleDate("");
+          setMeasurementType("");
+        } catch (e) {
+          console.error("خطأ في إضافة المهمة:", e);
+          alert("حدث خطأ أثناء إضافة المهمة");
+        }
+      };
+
+      return (
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">إدخال بيانات المهام</h2>
+            <button
+              onClick={logout}
+              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+            >
+              تسجيل الخروج
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h3 className="text-xl font-semibold mb-4">إضافة مهمة جديدة</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                placeholder="اسم العميل"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="رقم الهاتف"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="رقم الفاتورة"
+                value={invoice}
+                onChange={(e) => setInvoice(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <select
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+                required
+              >
+                <option value="">اختر المنطقة</option>
+                {kuwaitAreas.map((area) => (
+                  <option key={area.value} value={area.value}>
+                    {area.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="تفاصيل العنوان (بلوك، شارع، منزل)"
+                value={addressDetails}
+                onChange={(e) => setAddressDetails(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <select
+                value={technicianId}
+                onChange={(e) => setTechnicianId(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              >
+                <option value="">اختر فني</option>
+                {initialUsers
+                  .filter((u) => u.role === "technician")
+                  .map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.name}
+                    </option>
+                  ))}
+              </select>
+              <input
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <select
+                value={measurementType}
+                onChange={(e) => setMeasurementType(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              >
+                <option value="">اختر نوعية القياس</option>
+                {measurementTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={addTask}
+              className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+            >
+              إضافة المهمة
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // مكون واجهة الأدمن
+    const AdminDashboard = ({ tasks, setTasks, users, setUsers, logout }) => {
+      const [clientName, setClientName] = useState("");
+      const [phone, setPhone] = useState("");
+      const [invoice, setInvoice] = useState("");
+      const [area, setArea] = useState("");
+      const [addressDetails, setAddressDetails] = useState("");
+      const [technicianId, setTechnicianId] = useState("");
+      const [scheduleDate, setScheduleDate] = useState("");
+      const [measurementType, setMeasurementType] = useState("");
+      const [editingTask, setEditingTask] = useState(null);
+      const [editingTechnician, setEditingTechnician] = useState(null);
+      const [technicianName, setTechnicianName] = useState("");
+      const [selectedDate, setSelectedDate] = useState(null);
+      const [filterStatus, setFilterStatus] = useState(null);
+
+      const addOrUpdateTask = () => {
+        try {
+          if (!clientName || !phone || !invoice || !area || !addressDetails || !technicianId || !scheduleDate || !measurementType) {
+            alert("يرجى ملء جميع الحقول");
+            return;
+          }
+
+          if (editingTask) {
+            setTasks(
+              tasks.map((task) =>
+                task.id === editingTask.id
+                  ? {
+                      ...task,
+                      clientName,
+                      phone,
+                      invoice,
+                      address: { area, details: addressDetails },
+                      technicianId: parseInt(technicianId),
+                      scheduleDate,
+                      measurementType,
+                    }
+                  : task
+              )
+            );
+            setEditingTask(null);
+          } else {
+            const newTask = {
+              id: tasks.length + 1,
+              clientName,
+              phone,
+              invoice,
+              address: { area, details: addressDetails },
+              technicianId: parseInt(technicianId),
+              status: "pending",
+              scheduleDate,
+              measurementType,
+              technicianNotes: "",
+              attachedFiles: [],
+            };
+            setTasks([...tasks, newTask]);
+          }
+
+          setClientName("");
+          setPhone("");
+          setInvoice("");
+          setArea("");
+          setAddressDetails("");
+          setTechnicianId("");
+          setScheduleDate("");
+          setMeasurementType("");
+        } catch (e) {
+          console.error("خطأ في إضافة/تحديث المهمة:", e);
+          alert("حدث خطأ أثناء إضافة/تحديث المهمة");
+        }
+      };
+
+      const editTask = (task) => {
+        setEditingTask(task);
+        setClientName(task.clientName);
+        setPhone(task.phone);
+        setInvoice(task.invoice);
+        setArea(task.address.area);
+        setAddressDetails(task.address.details);
+        setTechnicianId(task.technicianId);
+        setScheduleDate(task.scheduleDate);
+        setMeasurementType(task.measurementType);
+      };
+
+      const deleteTask = (id) => {
+        try {
+          setTasks(tasks.filter((task) => task.id !== id));
+        } catch (e) {
+          console.error("خطأ في حذف المهمة:", e);
+          alert("حدث خطأ أثناء حذف المهمة");
+        }
+      };
+
+      const startEditingTechnician = (tech) => {
+        setEditingTechnician(tech);
+        setTechnicianName(tech.name);
+      };
+
+      const updateTechnicianName = () => {
+        try {
+          if (!technicianName.trim()) {
+            alert("يرجى إدخال اسم صحيح للفني");
+            return;
+          }
+          setUsers(
+            users.map((user) =>
+              user.id === editingTechnician.id
+                ? { ...user, name: technicianName }
+                : user
+            )
+          );
+          setEditingTechnician(null);
+          setTechnicianName("");
+        } catch (e) {
+          console.error("خطأ في تعديل اسم الفني:", e);
+          alert("حدث خطأ أثناء تعديل اسم الفني");
+        }
+      };
+
+      // تصفية المهام حسب التاريخ والحالة
+      const filteredTasks = tasks.filter((task) => {
+        const matchesDate = selectedDate ? task.scheduleDate === selectedDate : true;
+        const matchesStatus = filterStatus ? task.status === filterStatus : true;
+        return matchesDate && matchesStatus;
+      });
+
+      return (
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">لوحة تحكم الأدمن</h2>
+            <button
+              onClick={logout}
+              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+            >
+              تسجيل الخروج
+            </button>
+          </div>
+
+          {/* إضافة/تعديل مهمة */}
+          <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
+            <h3 className="text-xl font-semibold mb-4">
+              {editingTask ? "تعديل مهمة" : "إضافة مهمة جديدة"}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                placeholder="اسم العميل"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="رقم الهاتف"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="رقم الفاتورة"
+                value={invoice}
+                onChange={(e) => setInvoice(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <select
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+                required
+              >
+                <option value="">اختر المنطقة</option>
+                {kuwaitAreas.map((area) => (
+                  <option key={area.value} value={area.value}>
+                    {area.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="تفاصيل العنوان (بلوك، شارع، منزل)"
+                value={addressDetails}
+                onChange={(e) => setAddressDetails(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <select
+                value={technicianId}
+                onChange={(e) => setTechnicianId(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              >
+                <option value="">اختر فني</option>
+                {users
+                  .filter((u) => u.role === "technician")
+                  .map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.name}
+                    </option>
+                  ))}
+              </select>
+              <input
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+              <select
+                value={measurementType}
+                onChange={(e) => setMeasurementType(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              >
+                <option value="">اختر نوعية القياس</option>
+                {measurementTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={addOrUpdateTask}
+              className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+            >
+              {editingTask ? "تحديث المهمة" : "إضافة المهمة"}
+            </button>
+            {editingTask && (
+              <button
+                onClick={() => {
+                  setEditingTask(null);
+                  setClientName("");
+                  setPhone("");
+                  setInvoice("");
+                  setArea("");
+                  setAddressDetails("");
+                  setTechnicianId("");
+                  setScheduleDate("");
+                  setMeasurementType("");
+                }}
+                className="mt-4 ml-4 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+              >
+                إلغاء التعديل
+              </button>
+            )}
+          </div>
+
+          {/* إدارة الفنيين */}
+          <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
+            <h3 className="text-xl font-semibold mb-4">إدارة الفنيين</h3>
+            <div className="grid grid-cols-1 gap-4">
+              {users
+                .filter((u) => u.role === "technician")
+                .map((tech) => (
+                  <div
+                    key={tech.id}
+                    className="border p-4 rounded-lg flex justify-between items-center"
+                  >
+                    <div>
+                      <p><strong>اسم المستخدم:</strong> {tech.username}</p>
+                      <p><strong>الاسم:</strong> {tech.name}</p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => startEditingTechnician(tech)}
+                        className="bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600"
+                      >
+                        تعديل الاسم
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+            {editingTechnician && (
+              <div className="mt-4">
+                <h4 className="text-lg font-semibold mb-2">تعديل اسم الفني: {editingTechnician.username}</h4>
+                <input
+                  type="text"
+                  value={technicianName}
+                  onChange={(e) => setTechnicianName(e.target.value)}
+                  className="px-3 py-2 border rounded-lg mr-2"
+                  placeholder="أدخل الاسم الجديد"
+                />
+                <button
+                  onClick={updateTechnicianName}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                >
+                  حفظ
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingTechnician(null);
+                    setTechnicianName("");
+                  }}
+                  className="ml-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                >
+                  إلغاء
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* تصفية المهام حسب التاريخ والحالة */}
+          <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
+            <h3 className="text-xl font-semibold mb-4">تصفية المهام</h3>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <label className="text-gray-700">التاريخ:</label>
+                <input
+                  type="date"
+                  value={selectedDate || ""}
+                  onChange={(e) => setSelectedDate(e.target.value || null)}
+                  className="px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setFilterStatus("postponed")}
+                  className={`px-4 py-2 rounded-lg ${
+                    filterStatus === "postponed"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  عرض المهام المؤجلة فقط
+                </button>
+                <button
+                  onClick={() => setFilterStatus("canceled")}
+                  className={`px-4 py-2 rounded-lg ${
+                    filterStatus === "canceled"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  عرض المهام الملغاة فقط
+                </button>
+                {(selectedDate || filterStatus) && (
+                  <button
+                    onClick={() => {
+                      setSelectedDate(null);
+                      setFilterStatus(null);
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                  >
+                    إلغاء التصفية
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <h3 className="text-xl font-semibold mb-4">
+              {filterStatus === "postponed" && selectedDate
+                ? `المهام المؤجلة في ${new Date(selectedDate).toLocaleDateString("ar-EG")}`
+                : filterStatus === "postponed"
+                ? "المهام المؤجلة"
+                : filterStatus === "canceled" && selectedDate
+                ? `المهام الملغاة في ${new Date(selectedDate).toLocaleDateString("ar-EG")}`
+                : filterStatus === "canceled"
+                ? "المهام الملغاة"
+                : selectedDate
+                ? `المهام في ${new Date(selectedDate).toLocaleDateString("ar-EG")}`
+                : "قائمة المهام"}
+            </h3>
+            <div className="grid grid-cols-1 gap-4">
+              {filteredTasks.length === 0 ? (
+                <p>لا توجد مهام تطابق معايير التصفية</p>
+              ) : (
+                filteredTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="border p-4 rounded-lg flex justify-between items-center"
+                  >
+                    <div>
+                      <p><strong>العميل:</strong> {task.clientName}</p>
+                      <p><strong>الهاتف:</strong> {task.phone}</p>
+                      <p><strong>الفاتورة:</strong> {task.invoice}</p>
+                      <p>
+                        <strong>العنوان:</strong>{" "}
+                        {task.address.area}{task.address.details ? `، ${task.address.details}` : ""}
+                      </p>
+                      <p>
+                        <strong>الفني:</strong>{" "}
+                        {users.find((u) => u.id === task.technicianId)?.name || "غير معين"}
+                      </p>
+                      <p>
+                        <strong>تاريخ الجدولة:</strong>{" "}
+                        {task.scheduleDate
+                          ? new Date(task.scheduleDate).toLocaleDateString("ar-EG")
+                          : "غير محدد"}
+                      </p>
+                      <p>
+                        <strong>نوعية القياس:</strong>{" "}
+                        {measurementTypes.find((type) => type.value === task.measurementType)?.label || "غير محدد"}
+                      </p>
+                      <p>
+                        <strong>الحالة:</strong>{" "}
+                        {task.status === "pending" ? "معلقة" : task.status === "completed" ? "مكتملة" : task.status === "canceled" ? "ملغاة" : "مؤجلة"}
+                      </p>
+                      {task.status === "postponed" && task.postponeReason && (
+                        <p><strong>سبب التأجيل:</strong> {task.postponeReason}</p>
+                      )}
+                      {task.status === "canceled" && task.cancelReason && (
+                        <p><strong>سبب الإلغاء:</strong> {task.cancelReason}</p>
+                      )}
+                      {task.technicianNotes && (
+                        <p><strong>ملاحظات الفني:</strong> {task.technicianNotes}</p>
+                      )}
+                      {task.attachedFiles?.length > 0 && (
+                        <div>
+                          <p><strong>الملفات المرفوعة:</strong></p>
+                          <ul className="list-disc pl-5">
+                            {task.attachedFiles.map((fileObj, index) => (
+                              <li key={index}>
+                                <a
+                                  href={URL.createObjectURL(fileObj.file)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 underline"
+                                >
+                                  {fileObj.name}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => editTask(task)}
+                        className="bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600"
+                      >
+                        تعديل
+                      </button>
+                      <button
+                        onClick={() => deleteTask(task.id)}
+                        className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // مكون واجهة الفني
+    const TechnicianDashboard = ({ user, tasks, setTasks, logout }) => {
+      const [selectedDate, setSelectedDate] = useState(null);
+      const [postponeModal, setPostponeModal] = useState({ isOpen: false, taskId: null });
+      const [newScheduleDate, setNewScheduleDate] = useState("");
+      const [postponeReason, setPostponeReason] = useState("");
+      const [cancelModal, setCancelModal] = useState({ isOpen: false, taskId: null });
+      const [cancelReason, setCancelReason] = useState("");
+
+      const updateTaskStatus = (taskId, status) => {
+        try {
+          if (status === "postponed") {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            setNewScheduleDate(tomorrow.toISOString().split("T")[0]);
+            setPostponeModal({ isOpen: true, taskId });
+            setPostponeReason("");
+          } else if (status === "canceled") {
+            setCancelModal({ isOpen: true, taskId });
+            setCancelReason("");
+          } else {
+            setTasks(
+              tasks.map((task) =>
+                task.id === taskId ? { ...task, status } : task
+              )
+            );
+          }
+        } catch (e) {
+          console.error("خطأ في تحديث حالة المهمة:", e);
+          alert("حدث خطأ أثناء تحديث حالة المهمة");
+        }
+      };
+
+      const updateTaskNotes = (taskId, notes) => {
+        try {
+          setTasks(
+            tasks.map((task) =>
+              task.id === taskId ? { ...task, technicianNotes: notes } : task
+            )
+          );
+        } catch (e) {
+          console.error("خطأ في تحديث ملاحظات الفني:", e);
+          alert("حدث خطأ أثناء تحديث ملاحظات الفني");
+        }
+      };
+
+      const handleFileUpload = (taskId, files) => {
+        try {
+          const newFiles = Array.from(files).map((file) => ({
+            file,
+            name: file.name,
+          }));
+          setTasks(
+            tasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    attachedFiles: [...(task.attachedFiles || []), ...newFiles],
+                  }
+                : task
+            )
+          );
+        } catch (e) {
+          console.error("خطأ في رفع الملفات:", e);
+          alert("حدث خطأ أثناء رفع الملفات");
+        }
+      };
+
+      const sendNotification = (task) => {
+        console.log(
+          `إشعار للأدمن: تم تأجيل مهمة العميل ${task.clientName} إلى ${new Date(task.scheduleDate).toLocaleDateString("ar-EG")} للسبب: ${task.postponeReason || "غير محدد"}`
+        );
+      };
+
+      const confirmPostpone = () => {
+        try {
+          if (!newScheduleDate) {
+            alert("يرجى اختيار تاريخ جديد");
+            return;
+          }
+
+          if (new Date(newScheduleDate) < new Date().setHours(0, 0, 0, 0)) {
+            alert("لا يمكن اختيار تاريخ سابق لليوم الحالي");
+            return;
+          }
+
+          const updatedTasks = tasks.map((task) =>
+            task.id === postponeModal.taskId
+              ? {
+                  ...task,
+                  status: "postponed",
+                  scheduleDate: newScheduleDate,
+                  postponeReason: postponeReason || undefined,
+                }
+              : task
+          );
+          setTasks(updatedTasks);
+
+          const postponedTask = updatedTasks.find((task) => task.id === postponeModal.taskId);
+          sendNotification(postponedTask);
+
+          setPostponeModal({ isOpen: false, taskId: null });
+          setNewScheduleDate("");
+          setPostponeReason("");
+          alert("تم تأجيل المهمة وإرسال إشعار للأدمن");
+        } catch (e) {
+          console.error("خطأ في تأجيل المهمة:", e);
+          alert("حدث خطأ أثناء تأجيل المهمة");
+        }
+      };
+
+      const confirmCancel = () => {
+        try {
+          if (!cancelReason.trim()) {
+            alert("يرجى إدخال سبب الإلغاء");
+            return;
+          }
+
+          setTasks(
+            tasks.map((task) =>
+              task.id === cancelModal.taskId
+                ? { ...task, status: "canceled", cancelReason }
+                : task
+            )
+          );
+
+          setCancelModal({ isOpen: false, taskId: null });
+          setCancelReason("");
+          alert("تم إلغاء المهمة بنجاح");
+        } catch (e) {
+          console.error("خطأ في إلغاء المهمة:", e);
+          alert("حدث خطأ أثناء إلغاء المهمة");
+        }
+      };
+
+      const closeModal = () => {
+        setPostponeModal({ isOpen: false, taskId: null });
+        setNewScheduleDate("");
+        setPostponeReason("");
+      };
+
+      const closeCancelModal = () => {
+        setCancelModal({ isOpen: false, taskId: null });
+        setCancelReason("");
+      };
+
+      // استخراج تواريخ المهام الفريدة للفني
+      const technicianTasks = tasks.filter((task) => task.technicianId === user.id);
+      const uniqueDates = [...new Set(
+        technicianTasks
+          .map((task) => task.scheduleDate)
+          .filter((date) => date)
+      )].sort((a, b) => new Date(a) - new Date(b));
+
+      // تصفية المهام حسب التاريخ المختار
+      const filteredTasks = selectedDate
+        ? technicianTasks.filter((task) => task.scheduleDate === selectedDate)
+        : technicianTasks.sort((a, b) => new Date(a.scheduleDate) - new Date(b.scheduleDate));
+
+      return (
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">المهام المعينة لـ {user.name}</h2>
+            <button
+              onClick={logout}
+              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+            >
+              تسجيل الخروج
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
+            <h3 className="text-xl font-semibold mb-4">اختر تاريخ المهام</h3>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {uniqueDates.length === 0 ? (
+                <p>لا توجد تواريخ مهام متاحة</p>
+              ) : (
+                uniqueDates.map((date) => (
+                  <button
+                    key={date}
+                    onClick={() => setSelectedDate(date)}
+                    className={`px-4 py-2 rounded-lg ${
+                      selectedDate === date
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    {new Date(date).toLocaleDateString("ar-EG")}
+                  </button>
+                ))
+              )}
+              {selectedDate && (
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                >
+                  إلغاء التصفية
+                </button>
+              )}
+            </div>
+
+            <h3 className="text-xl font-semibold mb-4">
+              {selectedDate
+                ? `المهام في ${new Date(selectedDate).toLocaleDateString("ar-EG")}`
+                : "جميع المهام (مرتبة حسب تاريخ الجدولة)"}
+            </h3>
+            {filteredTasks.length === 0 ? (
+              <p>لا توجد مهام في هذا التاريخ</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {filteredTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="border p-4 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center"
+                  >
+                    <div className="mb-4 md:mb-0">
+                      <p><strong>العميل:</strong> {task.clientName}</p>
+                      <p><strong>الهاتف:</strong> {task.phone}</p>
+                      <p><strong>رقم الفاتورة:</strong> {task.invoice}</p>
+                      <p>
+                        <strong>العنوان:</strong>{" "}
+                        {task.address.area}{task.address.details ? `، ${task.address.details}` : ""}
+                      </p>
+                      <p>
+                        <strong>تاريخ الجدولة:</strong>{" "}
+                        {task.scheduleDate
+                          ? new Date(task.scheduleDate).toLocaleDateString("ar-EG")
+                          : "غير محدد"}
+                      </p>
+                      <p>
+                        <strong>نوعية القياس:</strong>{" "}
+                        {measurementTypes.find((type) => type.value === task.measurementType)?.label || "غير محدد"}
+                      </p>
+                      <p>
+                        <strong>الحالة:</strong>{" "}
+                        {task.status === "pending" ? "معلقة" : task.status === "completed" ? "مكتملة" : task.status === "canceled" ? "ملغاة" : "مؤجلة"}
+                      </p>
+                      {task.status === "postponed" && task.postponeReason && (
+                        <p><strong>سبب التأجيل:</strong> {task.postponeReason}</p>
+                      )}
+                      {task.status === "canceled" && task.cancelReason && (
+                        <p><strong>سبب الإلغاء:</strong> {task.cancelReason}</p>
+                      )}
+                      {task.technicianNotes && (
+                        <p><strong>ملاحظات الفني:</strong> {task.technicianNotes}</p>
+                      )}
+                      {task.attachedFiles?.length > 0 && (
+                        <div>
+                          <p><strong>الملفات المرفوعة:</strong></p>
+                          <ul className="list-disc pl-5">
+                            {task.attachedFiles.map((fileObj, index) => (
+                              <li key={index}>
+                                <a
+                                  href={URL.createObjectURL(fileObj.file)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 underline"
+                                >
+                                  {fileObj.name}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <div className="mt-2">
+                        <label className="block text-gray-700 mb-1">ملاحظات الفني</label>
+                        <input
+                          type="text"
+                          value={task.technicianNotes || ""}
+                          onChange={(e) => updateTaskNotes(task.id, e.target.value)}
+                          placeholder="أدخل ملاحظاتك..."
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end space-y-2">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => updateTaskStatus(task.id, "completed")}
+                          className="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600"
+                        >
+                          إكمال
+                        </button>
+                        <button
+                          onClick={() => updateTaskStatus(task.id, "canceled")}
+                          className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600"
+                        >
+                          إلغاء
+                        </button>
+                        <button
+                          onClick={() => updateTaskStatus(task.id, "postponed")}
+                          className="bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600"
+                        >
+                          تأجيل
+                        </button>
+                      </div>
+                      <div className="mt-2">
+                        <input
+                          type="file"
+                          onChange={(e) => handleFileUpload(task.id, e.target.files)}
+                          multiple
+                          accept="image/*,video/*,.pdf,.docx"
+                          className="hidden"
+                          id={`file-upload-${task.id}`}
+                        />
+                        <label
+                          htmlFor={`file-upload-${task.id}`}
+                          className="cursor-pointer flex items-center space-x-1 text-blue-500 hover:text-blue-600"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span>رفع ملف</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* نافذة منبثقة لتأجيل المهمة */}
+          {postponeModal.isOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+                <h3 className="text-xl font-semibold mb-4">تأجيل المهمة</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">اختر تاريخ جديد</label>
+                  <input
+                    type="date"
+                    value={newScheduleDate}
+                    onChange={(e) => setNewScheduleDate(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">سبب التأجيل (اختياري)</label>
+                  <input
+                    type="text"
+                    value={postponeReason}
+                    onChange={(e) => setPostponeReason(e.target.value)}
+                    placeholder="مثال: جدول مزدحم، طلب العميل"
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={confirmPostpone}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                  >
+                    تأكيد
+                  </button>
+                  <button
+                    onClick={closeModal}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* نافذة منبثقة لإلغاء المهمة */}
+          {cancelModal.isOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+                <h3 className="text-xl font-semibold mb-4">إلغاء المهمة</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">سبب الإلغاء</label>
+                  <input
+                    type="text"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="أدخل سبب الإلغاء (مثال: رفض العميل)"
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={confirmCancel}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                  >
+                    تأكيد
+                  </button>
+                  <button
+                    onClick={closeCancelModal}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                  >
+                    إغلاق
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // المكون الرئيسي
+    const App = () => {
+      const [user, setUser] = useState(null);
+      const [tasks, setTasks] = useState(initialTasks);
+      const [users, setUsers] = useState(initialUsers);
+
+      useEffect(() => {
+        console.log("تم تحميل التطبيق بنجاح");
+      }, []);
+
+      const logout = () => {
+        setUser(null);
+      };
+
+      return (
+        <div className="min-h-screen bg-blue-100">
+          {!user ? (
+            <Login setUser={setUser} />
+          ) : user.role === "admin" ? (
+            <AdminDashboard
+              tasks={tasks}
+              setTasks={setTasks}
+              users={users}
+              setUsers={setUsers}
+              logout={logout}
+            />
+          ) : user.role === "technician" ? (
+            <TechnicianDashboard
+              user={user}
+              tasks={tasks}
+              setTasks={setTasks}
+              logout={logout}
+            />
+          ) : (
+            <DataEntryDashboard
+              tasks={tasks}
+              setTasks={setTasks}
+              logout={logout}
+            />
+          )}
+        </div>
+      );
+    };
+
+    // عرض التطبيق
+    try {
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    } catch (e) {
+      console.error("خطأ في عرض التطبيق:", e);
+    }
+  </script>
+</body>
+</html>
